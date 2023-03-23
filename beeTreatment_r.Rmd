@@ -1,0 +1,140 @@
+---
+title: "bee_treatment2"
+author: "Joel Borja"
+date: "2022-10-31"
+output: html_document
+---
+
+```{r}
+library(readxl)
+library(gamlss)
+library(pscl)
+library(broom)
+library(ResourceSelection)
+library(ggplot2)
+library(tidyverse)
+```
+
+```{r}
+#load the data into the df dataframe
+df <- read_excel("/Bee tests/NAremoved.xlsx", sheet = "3_match")
+```
+
+```{r}
+#change variables to factors 
+df$trial = as.factor(df$trial)
+df$colony_id = as.factor(df$colony_id)
+df$treatment = as.factor(df$treatment)
+df$location = as.factor(df$location)
+```
+
+```{r}
+#get the values from these variables
+analysisdat = df[,c("trial", "location", "treatment","colony_id", "time", "larval_age", "num_mite", "num_larva")]
+
+#remove all the NA cases from each variable
+dat= analysisdat[complete.cases(analysisdat),]
+
+#check the dimensions
+dim(dat)
+```
+
+```{r}
+#view summary of data
+summary(dat)
+```
+
+```{r}
+#change to zeros and ones by subtracting one
+#we want to change these as their initial codes are 1,2 and we want 0,1 for treatment
+#collapse all others 
+dat$trial = as.numeric(dat$trial) 
+dat$location= as.numeric(dat$location)
+dat$treatment  = as.numeric(dat$treatment ) - 1
+dat$colony_id = as.numeric(dat$colony_id)
+```
+
+```{r}
+hist(dat$trial, main = "Frequency of trials")
+hist(dat$location, main = "Frequency of mite on location")
+hist(dat$colony_id, main = "Colony ID")
+hist(dat$time, main = "Time mites stayed on larva")
+hist(dat$larval_age, main = "Age of larva")
+hist(dat$num_mite, main = "Number of mites")
+hist(dat$num_larva, main = "Number of Larva")
+```
+
+# check delta beta percent
+```{r}
+model.dbp1 = glm(num_mite ~ trial + colony_id + time + larval_age, family = "poisson", data = dat)
+summary(model.dbp1 )
+```
+
+```{r}
+model.dbp2 = glm(num_mite ~ trial + colony_id  + larval_age, family = "poisson", data = dat)
+summary(model.dbp2 )
+```
+
+```{r}
+model.dbp3 = glm(num_mite ~ trial + larval_age, family = "poisson", data = dat)
+summary(model.dbp3 )
+```
+
+```{r}
+final.model = glm(num_mite ~ trial + larval_age, family = "poisson", data = dat)
+summary(final.model )
+```
+
+```{r}
+#get the logit outcome 
+logit = predict(final.model)
+```
+
+```{r}
+# summarize the results of scale checks for ONE continuous predictor in the model
+subset = data.frame(dat$larval_age, logit)
+plot(subset, main = "Larval age vs logit")
+lines(lowess(subset))
+```
+
+```{r}
+#interaction p-value not significant 
+interact.model = glm(num_mite ~ trial + larval_age + trial:larval_age, family = "poisson", data = dat)
+summary(interact.model )
+```
+
+```{r}
+final = glm(num_mite ~ trial + larval_age, family = "poisson", data=dat)
+summary(final)
+plot(final)
+```
+
+# assess the fit of the model
+```{r}
+#pearson test
+pr = residuals(final, "pearson")
+sumPR = sum(pr^2)
+degFree = 2557
+```
+
+```{r}
+#chi-square test
+pp = pchisq(sumPR, degFree)
+chisq = 1-pchisq(sumPR, degFree)
+chisq
+```
+
+```{r}
+hltest = hoslem.test(dat$num_mite, fitted(final), g=10)
+hltest
+```
+
+```{r}
+plot(final, which = 4, id.n = 3)
+```
+```{r}
+newData = dat[-1405,]
+model.new = glm(num_mite ~ trial + larval_age, family = "poisson", data=dat)
+summary(model.new)
+```
+
